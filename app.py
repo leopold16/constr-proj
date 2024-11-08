@@ -7,8 +7,8 @@ from sqlalchemy.pool import NullPool
 app = Flask(__name__, template_folder="templates")
 
 #connect to database
-#DATABASEURI = "postgresql://lw2999:341647@104.196.222.236/proj1part2"
-#engine = create_engine(DATABASEURI)
+DATABASEURI = "postgresql://lw2999:341647@104.196.222.236/proj1part2"
+engine = create_engine(DATABASEURI)
 
 
 
@@ -46,23 +46,75 @@ def dashboard():
 
 @app.route("/employee_tasks", methods=["GET", "POST"])
 def employee_tasks():
-    if request.method == "POST":
-        task_id = int(request.form.get("task_id"))
-        employee_id = int(request.form.get("employee_id"))
+    """
+    Assign tasks to employees and display task assignments.
+    """
+    with engine.connect() as conn:
+        if request.method == "POST":
+            task_id = int(request.form.get("task_id"))
+            employee_id = int(request.form.get("employee_id"))
 
-        # Assign task to employee
-        selected_task = next(task for task in tasks if task["id"] == task_id)
-        selected_employee = next(emp for emp in employees if emp["id"] == employee_id)
-        selected_employee["tasks"].append(selected_task["name"])
-        selected_task["status"] = "Assigned"
-        return redirect(url_for("employee_tasks"))
+            # Assign the task to the employee in the database
+            conn.execute(
+                text("INSERT INTO employee_assigned_tasks (employee_id, task_id) VALUES (:employee_id, :task_id)"),
+                {"employee_id": employee_id, "task_id": task_id}
+            )
+            conn.execute(
+                text("UPDATE task SET task_status = 'Assigned' WHERE task_id = :task_id"),
+                {"task_id": task_id}
+            )
+            return redirect(url_for("employee_tasks"))
+
+        # Fetch employees and tasks dynamically
+        employees = conn.execute(
+            text("SELECT employee_id, employee_first_name, employee_last_name, employee_role FROM employee")
+        ).fetchall()
+        employees = [{"id": row.employee_id, "name": f"{row.employee_first_name} {row.employee_last_name}", "role": row.employee_role} for row in employees]
+
+        tasks = conn.execute(
+            text("SELECT task_id, task_name, task_description, task_status FROM task")
+        ).fetchall()
+        tasks = [{"id": row.task_id, "name": row.task_name, "description": row.task_description, "status": row.task_status} for row in tasks]
 
     return render_template("employee_tasks.html", employees=employees, tasks=tasks)
 
-
-@app.route("/client_view")
+@app.route("/client_view", methods=["GET", "POST"])
 def client_view():
-    return render_template("client_view.html", projects=projects, invoices=invoices)
+    """
+    Search for a client and display their details.
+    """
+    client_data = None  # Default is no client data
+
+    with engine.connect() as conn:
+        if request.method == "POST":
+            # Get the search query from the form
+            search_query = request.form.get("search_query")
+
+            # Search for client by first or last name
+            result = conn.execute(
+                text("""
+                    SELECT client_id, client_first_name, client_last_name, client_address, client_phone, client_email
+                    FROM client
+                    WHERE client_first_name ILIKE :query OR client_last_name ILIKE :query
+                """),
+                {"query": f"%{search_query}%"}
+            ).fetchall()
+
+            # Convert to list of dictionaries
+            client_data = [
+                {
+                    "client_id": row.client_id,
+                    "first_name": row.client_first_name,
+                    "last_name": row.client_last_name,
+                    "address": row.client_address,
+                    "phone": row.client_phone,
+                    "email": row.client_email,
+                }
+                for row in result
+            ]
+
+    return render_template("client_view.html", client_data=client_data)
+
 
 
 @app.route("/invoice_generator", methods=["GET", "POST"])

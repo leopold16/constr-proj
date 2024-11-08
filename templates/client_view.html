@@ -2,40 +2,44 @@
 {% block title %}Client View{% endblock %}
 {% block content %}
 <h1>Client View</h1>
-<h3>Projects</h3>
-<table class="table">
-    <thead>
-        <tr>
-            <th>Name</th>
-            <th>Status</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for project in projects %}
-        <tr>
-            <td>{{ project.name }}</td>
-            <td>{{ project.status }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-<h3>Invoices</h3>
-<table class="table">
-    <thead>
-        <tr>
-            <th>Client</th>
-            <th>Amount</th>
-            <th>Status</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for invoice in invoices %}
-        <tr>
-            <td>{{ invoice.client }}</td>
-            <td>${{ invoice.amount }}</td>
-            <td>{{ invoice.status }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+
+<!-- Search Form -->
+<form method="POST" class="mb-4">
+    <div class="input-group">
+        <input type="text" name="search_query" class="form-control" placeholder="Search by first or last name" required>
+        <button class="btn btn-primary" type="submit">Search</button>
+    </div>
+</form>
+
+<!-- Display Results -->
+{% if client_data %}
+    <h3>Search Results</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Client ID</th>
+                <th>First Name</th>
+                <th>Last Name</th>
+                <th>Address</th>
+                <th>Phone</th>
+                <th>Email</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for client in client_data %}
+            <tr>
+                <td>{{ client.client_id }}</td>
+                <td>{{ client.first_name }}</td>
+                <td>{{ client.last_name }}</td>
+                <td>{{ client.address }}</td>
+                <td>{{ client.phone }}</td>
+                <td>{{ client.email }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>No clients found. Try searching by a different name.</p>
+{% endif %}
+
 {% endblock %}
