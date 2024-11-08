@@ -7,7 +7,7 @@ from sqlalchemy.pool import NullPool
 app = Flask(__name__, template_folder="templates")
 
 #connect to database
-#DATABASEURI = "postgresql://user:password@104.196.222.236/proj1part2"
+#DATABASEURI = "postgresql://lw2999:341647@104.196.222.236/proj1part2"
 #engine = create_engine(DATABASEURI)
 
 
