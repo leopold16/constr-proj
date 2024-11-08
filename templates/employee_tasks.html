@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Employee Tasks{% endblock %}
+{% block content %}
+<h1>Employee Task Assignment</h1>
+<form method="POST">
+    <div class="mb-3">
+        <label for="employee_id" class="form-label">Employee</label>
+        <select id="employee_id" name="employee_id" class="form-select">
+            {% for emp in employees %}
+            <option value="{{ emp.id }}">{{ emp.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="mb-3">
+        <label for="task_id" class="form-label">Task</label>
+        <select id="task_id" name="task_id" class="form-select">
+            {% for task in tasks %}
+            <option value="{{ task.id }}">{{ task.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Assign Task</button>
+</form>
+<table class="table mt-4">
+    <thead>
+        <tr>
+            <th>Employee</th>
+            <th>Assigned Tasks</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for emp in employees %}
+        <tr>
+            <td>{{ emp.name }}</td>
+            <td>{{ emp.tasks | join(', ') }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

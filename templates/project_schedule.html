@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Project Schedule{% endblock %}
+{% block content %}
+<h1>Project Schedule</h1>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Task</th>
+            <th>Employee</th>
+            <th>Start Date</th>
+            <th>End Date</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in schedule %}
+        <tr>
+            <td>{{ item.task }}</td>
+            <td>{{ item.employee }}</td>
+            <td>{{ item.start_date }}</td>
+            <td>{{ item.end_date }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
