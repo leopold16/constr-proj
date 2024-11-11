@@ -43,40 +43,73 @@ schedule = [
 def dashboard():
     return render_template("dashboard.html", projects=projects)
 
-
 @app.route("/employee_tasks", methods=["GET", "POST"])
 def employee_tasks():
     """
-    Assign tasks to employees and display task assignments.
+    Display employees and tasks, and assign tasks to employees.
     """
+    message = None  # Message to display after assigning a task
+
     with engine.connect() as conn:
         if request.method == "POST":
-            task_id = int(request.form.get("task_id"))
+            # Get employee and task IDs from the form
             employee_id = int(request.form.get("employee_id"))
+            task_id = int(request.form.get("task_id"))
 
-            # Assign the task to the employee in the database
-            conn.execute(
-                text("INSERT INTO employee_assigned_tasks (employee_id, task_id) VALUES (:employee_id, :task_id)"),
-                {"employee_id": employee_id, "task_id": task_id}
-            )
-            conn.execute(
-                text("UPDATE task SET task_status = 'Assigned' WHERE task_id = :task_id"),
-                {"task_id": task_id}
-            )
-            return redirect(url_for("employee_tasks"))
+            try:
+                # Insert the assignment into the employee_assigned_tasks table
+                conn.execute(
+                    text("INSERT INTO employee_assigned_tasks (employee_id, task_id) VALUES (:employee_id, :task_id)"),
+                    {"employee_id": employee_id, "task_id": task_id}
+                )
 
-        # Fetch employees and tasks dynamically
+                # Optionally update the task status in the task table
+                conn.execute(
+                    text("UPDATE task SET task_status = 'Assigned' WHERE task_id = :task_id"),
+                    {"task_id": task_id}
+                )
+
+                # Commit the transaction explicitly
+                conn.commit()
+
+                message = "Task successfully assigned!"
+            except Exception as e:
+                # Handle duplicate assignments or other errors
+                message = f"Error assigning task: {e}"
+
+        # Fetch all employees
         employees = conn.execute(
             text("SELECT employee_id, employee_first_name, employee_last_name, employee_role FROM employee")
         ).fetchall()
-        employees = [{"id": row.employee_id, "name": f"{row.employee_first_name} {row.employee_last_name}", "role": row.employee_role} for row in employees]
+        employees = [
+            {"id": row.employee_id, "name": f"{row.employee_first_name} {row.employee_last_name}", "role": row.employee_role}
+            for row in employees
+        ]
 
+        # Fetch all tasks that are not yet assigned
         tasks = conn.execute(
-            text("SELECT task_id, task_name, task_description, task_status FROM task")
+            text("SELECT task_id, task_name, task_description, task_status FROM task WHERE task_status != 'Completed'")
         ).fetchall()
-        tasks = [{"id": row.task_id, "name": row.task_name, "description": row.task_description, "status": row.task_status} for row in tasks]
+        tasks = [
+            {"id": row.task_id, "name": row.task_name, "description": row.task_description, "status": row.task_status}
+            for row in tasks
+        ]
 
-    return render_template("employee_tasks.html", employees=employees, tasks=tasks)
+        # Fetch task assignments for display
+        assignments = conn.execute(
+            text("""
+                SELECT eat.employee_id, e.employee_first_name, e.employee_last_name, t.task_name
+                FROM employee_assigned_tasks eat
+                JOIN employee e ON eat.employee_id = e.employee_id
+                JOIN task t ON eat.task_id = t.task_id
+            """)
+        ).fetchall()
+        assignments = [
+            {"employee_name": f"{row.employee_first_name} {row.employee_last_name}", "task_name": row.task_name}
+            for row in assignments
+        ]
+
+    return render_template("employee_tasks.html", employees=employees, tasks=tasks, assignments=assignments, message=message)
 
 @app.route("/client_view", methods=["GET", "POST"])
 def client_view():

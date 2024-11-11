@@ -2,39 +2,54 @@
 {% block title %}Employee Tasks{% endblock %}
 {% block content %}
 <h1>Employee Task Assignment</h1>
-<form method="POST">
-    <div class="mb-3">
-        <label for="employee_id" class="form-label">Employee</label>
-        <select id="employee_id" name="employee_id" class="form-select">
-            {% for emp in employees %}
-            <option value="{{ emp.id }}">{{ emp.name }}</option>
-            {% endfor %}
-        </select>
+
+<!-- Success/Error Message -->
+{% if message %}
+<div class="alert alert-info">{{ message }}</div>
+{% endif %}
+
+<!-- Task Assignment Form -->
+<form method="POST" class="mb-4">
+    <div class="row">
+        <div class="col-md-5">
+            <label for="employee_id" class="form-label">Employee</label>
+            <select id="employee_id" name="employee_id" class="form-select" required>
+                {% for employee in employees %}
+                <option value="{{ employee.id }}">{{ employee.name }} ({{ employee.role }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-5">
+            <label for="task_id" class="form-label">Task</label>
+            <select id="task_id" name="task_id" class="form-select" required>
+                {% for task in tasks %}
+                <option value="{{ task.id }}">{{ task.name }} - {{ task.description }} ({{ task.status }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2 align-self-end">
+            <button type="submit" class="btn btn-primary">Assign Task</button>
+        </div>
     </div>
-    <div class="mb-3">
-        <label for="task_id" class="form-label">Task</label>
-        <select id="task_id" name="task_id" class="form-select">
-            {% for task in tasks %}
-            <option value="{{ task.id }}">{{ task.name }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <button type="submit" class="btn btn-primary">Assign Task</button>
 </form>
-<table class="table mt-4">
+
+<!-- Current Assignments -->
+<h3>Current Task Assignments</h3>
+<table class="table">
     <thead>
         <tr>
             <th>Employee</th>
-            <th>Assigned Tasks</th>
+            <th>Task</th>
         </tr>
     </thead>
     <tbody>
-        {% for emp in employees %}
+        {% for assignment in assignments %}
         <tr>
-            <td>{{ emp.name }}</td>
-            <td>{{ emp.tasks | join(', ') }}</td>
+            <td>{{ assignment.employee_name }}</td>
+            <td>{{ assignment.task_name }}</td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
+
 {% endblock %}
