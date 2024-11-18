@@ -1,45 +1,114 @@
 {% extends "base.html" %}
+
 {% block title %}Client View{% endblock %}
+
 {% block content %}
 <h1>Client View</h1>
 
-<!-- Search Form -->
-<form method="POST" class="mb-4">
-    <div class="input-group">
-        <input type="text" name="search_query" class="form-control" placeholder="Search by first or last name" required>
-        <button class="btn btn-primary" type="submit">Search</button>
-    </div>
+<!-- Dropdown for selecting a client -->
+<form method="GET" action="/client_view">
+    <label for="client-select">Select Client:</label>
+    <select id="client-select" name="client_id">
+        <option value="" disabled {% if not client_id %}selected{% endif %}>Choose a client</option>
+        {% for client in clients %}
+            <option value="{{ client.client_id }}" {% if client.client_id == client_id %}selected{% endif %}>
+                {{ client.client_name }}
+            </option>
+        {% endfor %}
+    </select>
+    <button type="submit">View Client</button>
 </form>
 
-<!-- Display Results -->
-{% if client_data %}
-    <h3>Search Results</h3>
+<!-- Display selected client's name -->
+{% if client_name %}
+    <h2>Client: {{ client_name }}</h2>
+{% endif %}
+
+<!-- Projects Table -->
+<h3>Projects</h3>
+<div class="table-container">
     <table class="table">
         <thead>
             <tr>
-                <th>Client ID</th>
-                <th>First Name</th>
-                <th>Last Name</th>
-                <th>Address</th>
-                <th>Phone</th>
-                <th>Email</th>
+                <th style="width: 40%;">Name</th> <!-- Fixed width -->
+                <th style="width: 60%;">Description</th>
             </tr>
         </thead>
         <tbody>
-            {% for client in client_data %}
-            <tr>
-                <td>{{ client.client_id }}</td>
-                <td>{{ client.first_name }}</td>
-                <td>{{ client.last_name }}</td>
-                <td>{{ client.address }}</td>
-                <td>{{ client.phone }}</td>
-                <td>{{ client.email }}</td>
-            </tr>
-            {% endfor %}
+            {% if projects %}
+                {% for project in projects %}
+                    <tr>
+                        <td>{{ project.project_name }}</td>
+                        <td>{{ project.project_description }}</td>
+                    </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="2">No projects to display.</td>
+                </tr>
+            {% endif %}
         </tbody>
     </table>
-{% else %}
-    <p>No clients found. Try searching by a different name.</p>
-{% endif %}
+</div>
+
+<!-- Invoices Table -->
+<h3>Invoices</h3>
+<div class="table-container">
+    <table class="table">
+        <thead>
+            <tr>
+                <th style="width: 33%;">Invoice ID</th> <!-- Fixed width -->
+                <th style="width: 33%;">Amount</th>
+                <th style="width: 34%;">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if invoices %}
+                {% for invoice in invoices %}
+                    <tr>
+                        <td>{{ invoice.invoice_id }}</td>
+                        <td>{{ invoice.invoice_amount }}</td>
+                        <td>{{ invoice.invoice_status }}</td>
+                    </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="3">No invoices to display.</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Work Orders Table -->
+<h3>Work Orders</h3>
+<div class="table-container">
+    <table class="table">
+        <thead>
+            <tr>
+                <th style="width: 25%;">Name</th> <!-- Fixed width -->
+                <th style="width: 25%;">Status</th>
+                <th style="width: 25%;">Start Date</th>
+                <th style="width: 25%;">End Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if work_orders %}
+                {% for work_order in work_orders %}
+                    <tr>
+                        <td>{{ work_order.work_order_name }}</td>
+                        <td>{{ work_order.work_order_status }}</td>
+                        <td>{{ work_order.work_order_start_date }}</td>
+                        <td>{{ work_order.work_order_end_date }}</td>
+                    </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="4">No work orders to display.</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
 
 {% endblock %}

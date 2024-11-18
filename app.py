@@ -79,10 +79,10 @@ def employee_tasks():
 
         # Fetch all employees
         employees = conn.execute(
-            text("SELECT employee_id, employee_first_name, employee_last_name, employee_role FROM employee")
+            text("SELECT employee_id, employee_name, employee_role FROM employee")
         ).fetchall()
         employees = [
-            {"id": row.employee_id, "name": f"{row.employee_first_name} {row.employee_last_name}", "role": row.employee_role}
+            {"id": row.employee_id, "name": f"{row.employee_name}", "role": row.employee_role}
             for row in employees
         ]
 
@@ -98,56 +98,88 @@ def employee_tasks():
         # Fetch task assignments for display
         assignments = conn.execute(
             text("""
-                SELECT eat.employee_id, e.employee_first_name, e.employee_last_name, t.task_name
+                SELECT eat.employee_id, e.employee_name, t.task_name
                 FROM employee_assigned_tasks eat
                 JOIN employee e ON eat.employee_id = e.employee_id
                 JOIN task t ON eat.task_id = t.task_id
             """)
         ).fetchall()
         assignments = [
-            {"employee_name": f"{row.employee_first_name} {row.employee_last_name}", "task_name": row.task_name}
+            {"employee_name": f"{row.employee_name}", "task_name": row.task_name}
             for row in assignments
         ]
 
     return render_template("employee_tasks.html", employees=employees, tasks=tasks, assignments=assignments, message=message)
 
-@app.route("/client_view", methods=["GET", "POST"])
+@app.route("/client_view", methods=["GET"])
 def client_view():
-    """
-    Search for a client and display their details.
-    """
-    client_data = None  # Default is no client data
-
     with engine.connect() as conn:
-        if request.method == "POST":
-            # Get the search query from the form
-            search_query = request.form.get("search_query")
+        # Fetch clients for the dropdown
+        clients = conn.execute(
+            text("SELECT client_id, CONCAT(client_first_name, ' ', client_last_name) AS client_name FROM lw2999.client")
+        ).fetchall()
 
-            # Search for client by first or last name
-            result = conn.execute(
+        # Check if clients exist
+        clients_exist = len(clients) > 0
+
+        # Get the selected client_id from the dropdown
+        client_id = request.args.get("client_id")
+        projects = []
+        invoices = []
+        work_orders = []
+        client_name = None  # Initialize client_name
+
+        if client_id:
+            # Fetch the selected client's name
+            client_name = conn.execute(
+                text("SELECT CONCAT(client_first_name, ' ', client_last_name) AS client_name FROM lw2999.client WHERE client_id = :client_id"),
+                {"client_id": client_id},
+            ).scalar()
+
+            # Fetch client projects
+            projects = conn.execute(
                 text("""
-                    SELECT client_id, client_first_name, client_last_name, client_address, client_phone, client_email
-                    FROM client
-                    WHERE client_first_name ILIKE :query OR client_last_name ILIKE :query
+                    SELECT p.project_name, p.project_description
+                    FROM lw2999.project p
+                    JOIN lw2999.client_has_projects chp ON p.project_id = chp.project_id
+                    WHERE chp.client_id = :client_id
                 """),
-                {"query": f"%{search_query}%"}
+                {"client_id": client_id},
             ).fetchall()
 
-            # Convert to list of dictionaries
-            client_data = [
-                {
-                    "client_id": row.client_id,
-                    "first_name": row.client_first_name,
-                    "last_name": row.client_last_name,
-                    "address": row.client_address,
-                    "phone": row.client_phone,
-                    "email": row.client_email,
-                }
-                for row in result
-            ]
+            # Fetch client invoices
+            invoices = conn.execute(
+                text("""
+                    SELECT i.invoice_id, i.invoice_amount, i.invoice_status
+                    FROM lw2999.invoice i
+                    JOIN lw2999.invoice_billed_to ibt ON i.invoice_id = ibt.invoice_id
+                    WHERE ibt.client_id = :client_id
+                """),
+                {"client_id": client_id},
+            ).fetchall()
 
-    return render_template("client_view.html", client_data=client_data)
+            # Fetch work orders
+            work_orders = conn.execute(
+                text("""
+                    SELECT wo.work_order_name, wo.work_order_status, wo.work_order_start_date, wo.work_order_end_date
+                    FROM lw2999.work_order wo
+                    JOIN lw2999.assigned_to_project atp ON wo.work_order_id = atp.work_order_id
+                    JOIN lw2999.client_has_projects chp ON atp.project_id = chp.project_id
+                    WHERE chp.client_id = :client_id
+                """),
+                {"client_id": client_id},
+            ).fetchall()
 
+        # Render the client view template
+        return render_template(
+            "client_view.html",
+            clients=clients,
+            projects=projects,
+            invoices=invoices,
+            work_orders=work_orders,
+            clients_exist=clients_exist,
+            client_name=client_name,
+        )
 
 
 @app.route("/invoice_generator", methods=["GET", "POST"])
@@ -161,9 +193,26 @@ def invoice_generator():
     return render_template("invoice_generator.html", invoices=invoices)
 
 
-@app.route("/project_schedule")
+@app.route('/project_schedule')
 def project_schedule():
-    return render_template("project_schedule.html", schedule=schedule)
+    with engine.connect() as conn:
+        schedule_data = conn.execute(
+            text("""
+            SELECT 
+                p.project_name,
+                wo.work_order_name,
+                wo.work_order_status,
+                wo.work_order_start_date AS start_date,
+                wo.work_order_end_date AS end_date
+            FROM lw2999.project p
+            JOIN lw2999.assigned_to_project atp ON p.project_id = atp.project_id
+            JOIN lw2999.work_order wo ON atp.work_order_id = wo.work_order_id
+            WHERE wo.work_order_status != 'Completed'
+            ORDER BY wo.work_order_start_date ASC;
+            """)
+        ).fetchall()
+        return render_template('project_schedule.html', schedule_data=schedule_data)
+
 
 
 if __name__ == "__main__":

@@ -1,25 +1,39 @@
 {% extends "base.html" %}
+
 {% block title %}Project Schedule{% endblock %}
+
 {% block content %}
-<h1>Project Schedule</h1>
+<h1>Projects Schedule</h1>
+
 <table class="table">
     <thead>
         <tr>
-            <th>Task</th>
-            <th>Employee</th>
+            <th>Project</th>
+            <th>Work Order</th>
+            <th>Status</th>
             <th>Start Date</th>
             <th>End Date</th>
         </tr>
     </thead>
     <tbody>
-        {% for item in schedule %}
+        {% for row in schedule_data %}
         <tr>
-            <td>{{ item.task }}</td>
-            <td>{{ item.employee }}</td>
-            <td>{{ item.start_date }}</td>
-            <td>{{ item.end_date }}</td>
+            <td>{{ row.project_name }}</td>
+            <td>{{ row.work_order_name }}</td>
+            <td>
+                {% if row.work_order_status == 'In Progress' %}
+                <span style="color: #6b8e23; font-weight: bold;">In Progress</span>
+                {% elif row.work_order_status == 'Pending' %}
+                <span style="color: #cc5500; font-weight: bold;">Pending</span>
+                {% else %}
+                {{ row.work_order_status }}
+                {% endif %}
+            </td>
+            <td>{{ row.start_date }}</td>
+            <td>{{ row.end_date }}</td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
+
 {% endblock %}
