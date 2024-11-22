@@ -4,6 +4,7 @@ password - 341647
 
 Web application URL
 This project runs locally, accessible via http://127.0.0.1:5000 or localhost:5000 when running python3 app.py
+This project runs externally on the internet via http://35.227.77.115:8111/ when running python3 app.py on google cloud ssh terminal.
 
 Implemenation Details: 
 
