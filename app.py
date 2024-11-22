@@ -8,8 +8,6 @@ app = Flask(__name__, template_folder="templates")
 
 app.jinja_env.globals.update(zip=zip)
 
-app.run(host="0.0.0.0", port=8111)
-
 
 #connect to database
 DATABASEURI = "postgresql://lw2999:341647@104.196.222.236/proj1part2"
@@ -594,5 +592,5 @@ def project_schedule():
     return render_template("project_schedule.html", schedule_data=schedule_data, projects=projects, message=message)
 
 
-if __name__ == "__main__":
-    app.run(debug=True)
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8111)
