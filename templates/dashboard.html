@@ -1,98 +1,110 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
+
 {% block content %}
-<h1>Dashboard</h1>
+<h1 class="mb-4">Dashboard</h1>
 
-<!-- Metrics Section -->
-<div class="row mb-4">
+<div class="row g-4">
+    <!-- projects summary -->
     <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-header">Projects</div>
+        <div class="card border-primary shadow-sm">
             <div class="card-body">
-                <h3>{{ total_projects }}</h3>
+                <h5 class="card-title text-primary">Projects</h5>
+                <p class="card-text">
+                    <strong>Total Projects:</strong> {{ total_projects }}
+                </p>
+                <a href="{{ url_for('project_schedule') }}" class="btn btn-primary btn-sm">View Projects</a>
             </div>
         </div>
     </div>
+
+    <!-- employees summary -->
     <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-header">Employees</div>
+        <div class="card border-success shadow-sm">
             <div class="card-body">
-                <h3>{{ total_employees }}</h3>
+                <h5 class="card-title text-success">Employees</h5>
+                <p class="card-text">
+                    <strong>Total Employees:</strong> {{ total_employees }}
+                </p>
+                <a href="{{ url_for('employee_tasks') }}" class="btn btn-success btn-sm">View Employees</a>
             </div>
         </div>
     </div>
+
+    <!-- tasks summary -->
     <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-header">Tasks</div>
+        <div class="card border-warning shadow-sm">
             <div class="card-body">
-                <h3>{{ total_tasks }}</h3>
+                <h5 class="card-title text-warning">Tasks</h5>
+                <p class="card-text">
+                    <strong>Total Tasks:</strong> {{ total_tasks }}</p>
+                <ul class="list-group list-group-flush">
+                    {% for status, count in task_statuses.items() %}
+                    <li class="list-group-item">{{ status }}: {{ count }}</li>
+                    {% endfor %}
+                </ul>
+                <a href="{{ url_for('employee_tasks') }}" class="btn btn-warning btn-sm mt-2">Manage Tasks</a>
             </div>
         </div>
     </div>
+
+    <!-- cost summary -->
     <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-header">Invoices</div>
+        <div class="card border-info shadow-sm">
             <div class="card-body">
-                <h3>{{ total_invoices }}</h3>
+                <h5 class="card-title text-info">Costs</h5>
+                <p class="card-text">
+                    <strong>Total Costs:</strong> ${{ costs_summary.total_cost_amount or 0 }}<br>
+                    <strong>Number of Costs:</strong> {{ costs_summary.total_costs or 0 }}
+                </p>
+                <a href="{{ url_for('cost_work_order') }}" class="btn btn-info btn-sm">View Costs</a>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Task Progress Section -->
-<h3>Task Progress</h3>
-<div class="row mb-4">
-    {% for status, count in task_statuses.items() %}
-    <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-header">{{ status }}</div>
-            <div class="card-body">
-                <h3>{{ count }}</h3>
-            </div>
-        </div>
-    </div>
-    {% endfor %}
-</div>
-
-<!-- Recent Invoices Section -->
-<h3>Recent Invoices</h3>
+<!-- recent invoices -->
+<h3 class="mt-5">Recent Invoices</h3>
 <table class="table">
     <thead>
         <tr>
-            <th>Invoice ID</th>
-            <th>Client</th>
+            <th>ID</th>
             <th>Amount</th>
             <th>Status</th>
             <th>Due Date</th>
+            <th>Client</th>
         </tr>
     </thead>
     <tbody>
         {% for invoice in recent_invoices %}
         <tr>
             <td>{{ invoice.id }}</td>
-            <td>{{ invoice.client }}</td>
             <td>${{ invoice.amount }}</td>
             <td>{{ invoice.status }}</td>
             <td>{{ invoice.due_date }}</td>
+            <td>{{ invoice.client }}</td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
 
-<!-- Quick Actions -->
-<h3>Quick Actions</h3>
-<div class="row">
-    <div class="col-md-3">
-        <a href="/employee_tasks" class="btn btn-primary btn-block">Assign Tasks</a>
-    </div>
-    <div class="col-md-3">
-        <a href="/invoice_generator" class="btn btn-primary btn-block">Generate Invoice</a>
-    </div>
-    <div class="col-md-3">
-        <a href="/client_view" class="btn btn-primary btn-block">View Clients</a>
-    </div>
-    <div class="col-md-3">
-        <a href="/project_schedule" class="btn btn-primary btn-block">View Schedule</a>
-    </div>
-</div>
+<!-- work orders by cost -->
+<h3 class="mt-5">Top Work Orders by Cost</h3>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Work Order</th>
+            <th>Total Cost</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for work_order in top_work_orders %}
+        <tr>
+            <td>{{ work_order.work_order_name }}</td>
+            <td>${{ work_order.total_cost }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
 {% endblock %}

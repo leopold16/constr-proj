@@ -16,16 +16,25 @@ engine = create_engine(DATABASEURI)
 @app.route("/")
 def dashboard():
     """
-    Dashboard view to display key metrics and recent activity.
+    Dashboard view to display key metrics, costs, and recent activity.
     """
     with engine.connect() as conn:
-        # Fetch summary metrics
+        # get summary metrics
         total_projects = conn.execute(text("SELECT COUNT(*) FROM project")).scalar()
         total_employees = conn.execute(text("SELECT COUNT(*) FROM employee")).scalar()
         total_tasks = conn.execute(text("SELECT COUNT(*) FROM task")).scalar()
         total_invoices = conn.execute(text("SELECT COUNT(*) FROM invoice")).scalar()
 
-        # Fetch recent invoices (limit to 5)
+        # get cost metrics
+        costs_summary = conn.execute(
+            text("""
+                SELECT COUNT(cost_id) AS total_costs, 
+                       SUM(cost_amount) AS total_cost_amount
+                FROM cost
+            """)
+        ).fetchone()
+
+        # get recent invoices
         recent_invoices = conn.execute(
             text("""
                 SELECT i.invoice_id, i.invoice_amount, i.invoice_status, i.due_date,
@@ -48,7 +57,7 @@ def dashboard():
             for row in recent_invoices
         ]
 
-        # Fetch task statuses
+        # get task statuses
         task_statuses = conn.execute(
             text("""
                 SELECT task_status, COUNT(*) AS count
@@ -58,39 +67,54 @@ def dashboard():
         ).fetchall()
         task_statuses = {row.task_status: row.count for row in task_statuses}
 
+        # get top work orders, sorted by  by cost
+        top_work_orders = conn.execute(
+            text("""
+                SELECT wo.work_order_id, wo.work_order_name, SUM(c.cost_amount) AS total_cost
+                FROM billed_to_work_order btwo
+                JOIN cost c ON btwo.cost_id = c.cost_id
+                JOIN work_order wo ON btwo.work_order_id = wo.work_order_id
+                GROUP BY wo.work_order_id, wo.work_order_name
+                ORDER BY total_cost DESC
+                LIMIT 5
+            """)
+        ).fetchall()
+
     return render_template(
         "dashboard.html",
         total_projects=total_projects,
         total_employees=total_employees,
         total_tasks=total_tasks,
         total_invoices=total_invoices,
+        costs_summary=costs_summary,
         recent_invoices=recent_invoices,
         task_statuses=task_statuses,
+        top_work_orders=top_work_orders,
     )
 
 @app.route("/employee_tasks", methods=["GET", "POST"])
 def employee_tasks():
     """
-    View employee tasks, assign tasks by typing task names, create new employees,
-    and update task statuses.
+    Manage employee tasks, link tasks to work orders, and display the task-work order relationships.
     """
     message = None
 
     with engine.connect() as conn:
         if request.method == "POST":
-            if "assign_task" in request.form:  # Assign a task to an employee
+            if "assign_task" in request.form:  # Assign a task to an employee, optionally link it to a work order
                 employee_id = request.form.get("employee_id")
                 task_name = request.form.get("task_name")
                 task_description = request.form.get("task_description", "")
+                work_order_id = request.form.get("work_order_id")
 
                 try:
-                    # Check if the task already exists
+                    # check if the task already exists
                     task = conn.execute(
                         text("SELECT task_id FROM task WHERE task_name = :task_name"),
                         {"task_name": task_name},
                     ).fetchone()
 
-                    if not task:  # Create the task if it doesn’t exist
+                    if not task:  # create the task if it doesn’t exist
                         task_id = conn.execute(
                             text("""
                                 INSERT INTO task (task_name, task_description, task_status)
@@ -101,7 +125,7 @@ def employee_tasks():
                     else:
                         task_id = task.task_id
 
-                    # Assign the task to the employee
+                    # assign the task to the employee
                     conn.execute(
                         text("""
                             INSERT INTO employee_assigned_tasks (employee_id, task_id)
@@ -109,16 +133,26 @@ def employee_tasks():
                         """),
                         {"employee_id": employee_id, "task_id": task_id},
                     )
+
+                    # link the task to a work order if given
+                    if work_order_id:
+                        conn.execute(
+                            text("""
+                                INSERT INTO task_assigned_work_order (task_id, work_order_id)
+                                VALUES (:task_id, :work_order_id)
+                            """),
+                            {"task_id": task_id, "work_order_id": work_order_id},
+                        )
+
                     conn.commit()
                     message = f"Task '{task_name}' assigned to employee {employee_id} successfully!"
                 except Exception as e:
                     conn.rollback()
                     message = f"Error assigning task: {e}"
 
-            elif "update_status" in request.form:  # Update task status
+            elif "update_status" in request.form:  
                 task_id = request.form.get("task_id")
                 new_status = request.form.get("new_status")
-
                 try:
                     conn.execute(
                         text("UPDATE task SET task_status = :new_status WHERE task_id = :task_id"),
@@ -130,7 +164,7 @@ def employee_tasks():
                     conn.rollback()
                     message = f"Error updating task status: {e}"
 
-            elif "add_employee" in request.form:  # Add a new employee
+            elif "add_employee" in request.form:  
                 employee_name = request.form.get("employee_name")
                 role = request.form.get("role")
 
@@ -148,7 +182,7 @@ def employee_tasks():
                     conn.rollback()
                     message = f"Error adding employee: {e}"
 
-        # Fetch employees and their tasks with descriptions and statuses
+        # get employees and their tasks
         employees = conn.execute(
             text("""
                 SELECT e.employee_id, e.employee_name, e.employee_role,
@@ -163,60 +197,96 @@ def employee_tasks():
             """)
         ).fetchall()
 
-    return render_template("employee_tasks.html", employees=employees, message=message)
+        # get tasks linked to work orders
+        task_work_orders = conn.execute(
+            text("""
+                SELECT t.task_id, t.task_name, wo.work_order_id, wo.work_order_name
+                FROM task t
+                LEFT JOIN task_assigned_work_order tawo ON t.task_id = tawo.task_id
+                LEFT JOIN work_order wo ON tawo.work_order_id = wo.work_order_id
+            """)
+        ).fetchall()
+
+        # get work orders to assigne tasks
+        work_orders = conn.execute(
+            text("SELECT work_order_id, work_order_name FROM work_order")
+        ).fetchall()
+
+        # organize task-work order relationships
+        task_work_order_dict = {}
+        for row in task_work_orders:
+            task_work_order_dict[row.task_id] = {
+                "work_order_id": row.work_order_id,
+                "work_order_name": row.work_order_name,
+            }
+
+    return render_template("employee_tasks.html", employees=employees, work_orders=work_orders, task_work_order_dict=task_work_order_dict, message=message)
+
 
 @app.route("/client_view", methods=["GET", "POST"])
 def client_view():
     """
-    View all clients, add a new client, and delete existing clients.
+    View clients, their associated projects, and manage the client-project relationship.
     """
-    message = None  # Feedback message for the user
+    message = None
 
     with engine.connect() as conn:
         if request.method == "POST":
-            if "create_client" in request.form:  # Handle new client creation
+            if "create_client" in request.form:  
                 first_name = request.form.get("client_first_name")
                 last_name = request.form.get("client_last_name")
                 address = request.form.get("client_address")
                 phone = request.form.get("client_phone")
                 email = request.form.get("client_email")
-
                 try:
-                    # Insert the new client into the database
                     conn.execute(
                         text("""
                             INSERT INTO client (client_first_name, client_last_name, client_address, client_phone, client_email)
                             VALUES (:first_name, :last_name, :address, :phone, :email)
                         """),
-                        {
-                            "first_name": first_name,
-                            "last_name": last_name,
-                            "address": address,
-                            "phone": phone,
-                            "email": email,
-                        }
+                        {"first_name": first_name, "last_name": last_name, "address": address, "phone": phone, "email": email}
                     )
                     conn.commit()
-                    message = "New client created successfully!"
+                    message = "Client created successfully!"
                 except Exception as e:
                     conn.rollback()
                     message = f"Error creating client: {e}"
 
-            elif "delete_client" in request.form:  # Handle client deletion
-                client_id = int(request.form.get("client_id"))
+            elif "assign_project" in request.form:  # to client
+                client_id = request.form.get("client_id")
+                project_id = request.form.get("project_id")
                 try:
-                    # Delete the client and cascade delete related data
                     conn.execute(
-                        text("DELETE FROM client WHERE client_id = :client_id"),
-                        {"client_id": client_id}
+                        text("""
+                            INSERT INTO client_has_projects (client_id, project_id)
+                            VALUES (:client_id, :project_id)
+                        """),
+                        {"client_id": client_id, "project_id": project_id}
                     )
                     conn.commit()
-                    message = f"Client {client_id} and related data deleted successfully!"
+                    message = f"Project {project_id} assigned to client {client_id} successfully!"
                 except Exception as e:
                     conn.rollback()
-                    message = f"Error deleting client: {e}"
+                    message = f"Error assigning project: {e}"
 
-        # Fetch all clients for display
+            elif "unassign_project" in request.form:  # unassign from client
+                client_id = request.form.get("client_id")
+                project_id = request.form.get("project_id")
+                try:
+                    conn.execute(
+                        text("""
+                            DELETE FROM client_has_projects
+                            WHERE client_id = :client_id AND project_id = :project_id
+                        """),
+                        {"client_id": client_id, "project_id": project_id}
+                    )
+                    conn.commit()
+                    message = f"Project {project_id} unassigned from client {client_id} successfully!"
+                except Exception as e:
+                    conn.rollback()
+                    message = f"Error unassigning project: {e}"
+
+        # get all clients
         clients = conn.execute(
             text("""
                 SELECT client_id, client_first_name, client_last_name, client_address, client_phone, client_email
@@ -224,117 +294,173 @@ def client_view():
             """)
         ).fetchall()
 
-        # Convert client data into a list of dictionaries
-        clients = [
-            {
-                "id": row.client_id,
-                "first_name": row.client_first_name,
-                "last_name": row.client_last_name,
-                "address": row.client_address,
-                "phone": row.client_phone,
-                "email": row.client_email,
-            }
-            for row in clients
-        ]
+        # get all projects
+        projects = conn.execute(
+            text("""
+                SELECT project_id, project_name
+                FROM project
+            """)
+        ).fetchall()
 
-    return render_template("client_view.html", clients=clients, message=message)
+        # get client-project relationships
+        client_projects = conn.execute(
+            text("""
+                SELECT chp.client_id, p.project_id, p.project_name
+                FROM client_has_projects chp
+                JOIN project p ON chp.project_id = p.project_id
+            """)
+        ).fetchall()
 
+        # organize client-project relationships
+        client_projects_dict = {}
+        for row in client_projects:
+            if row.client_id not in client_projects_dict:
+                client_projects_dict[row.client_id] = []
+            client_projects_dict[row.client_id].append({"project_id": row.project_id, "project_name": row.project_name})
+
+    return render_template("client_view.html", clients=clients, projects=projects, client_projects=client_projects_dict, message=message)
 
 @app.route("/invoice_generator", methods=["GET", "POST"])
 def invoice_generator():
     """
-    Generate and display invoices with client associations.
+    Generate invoices, display invoices linked to specific projects and clients.
     """
     message = None
 
     with engine.connect() as conn:
         if request.method == "POST":
-            if "create_invoice" in request.form:
-                # Get invoice details from the form
-                client_id = int(request.form.get("client_id"))
-                invoice_amount = float(request.form.get("invoice_amount"))
+            if "create_invoice" in request.form: 
+                project_id = request.form.get("project_id")
+                client_id = request.form.get("client_id")
                 issue_date = request.form.get("issue_date")
                 due_date = request.form.get("due_date")
-
+                amount = request.form.get("amount")
                 try:
-                    # Insert invoice into the invoice table
-                    conn.execute(
+                    # insert  new invoice into database
+                    invoice_id = conn.execute(
                         text("""
                             INSERT INTO invoice (issue_date, due_date, invoice_amount, invoice_status)
-                            VALUES (:issue_date, :due_date, :invoice_amount, 'Pending')
+                            VALUES (:issue_date, :due_date, :amount, 'Pending') RETURNING invoice_id
                         """),
-                        {
-                            "issue_date": issue_date,
-                            "due_date": due_date,
-                            "invoice_amount": invoice_amount,
-                        }
-                    )
+                        {"issue_date": issue_date, "due_date": due_date, "amount": amount},
+                    ).scalar()
 
-                    # Get the ID of the last inserted invoice
-                    result = conn.execute(text("SELECT LASTVAL()"))
-                    invoice_id = result.fetchone()[0]
+                    # link  invoice to  project
+                    if project_id:
+                        conn.execute(
+                            text("""
+                                INSERT INTO invoice_assigned_to_project (invoice_id, project_id)
+                                VALUES (:invoice_id, :project_id)
+                            """),
+                            {"invoice_id": invoice_id, "project_id": project_id},
+                        )
 
-                    # Link the invoice to the client in the invoice_billed_to table
-                    conn.execute(
-                        text("""
-                            INSERT INTO invoice_billed_to (invoice_id, client_id)
-                            VALUES (:invoice_id, :client_id)
-                        """),
-                        {
-                            "invoice_id": invoice_id,
-                            "client_id": client_id,
-                        }
-                    )
+                    # link invoice to  client
+                    if client_id:
+                        conn.execute(
+                            text("""
+                                INSERT INTO invoice_billed_to (invoice_id, client_id)
+                                VALUES (:invoice_id, :client_id)
+                            """),
+                            {"invoice_id": invoice_id, "client_id": client_id},
+                        )
 
                     conn.commit()
-                    message = "Invoice created successfully!"
+                    message = f"Invoice {invoice_id} created and linked successfully!"
                 except Exception as e:
                     conn.rollback()
                     message = f"Error creating invoice: {e}"
 
-            elif "mark_paid" in request.form:
-                # Mark an invoice as paid
-                invoice_id = int(request.form.get("invoice_id"))
-                try:
-                    conn.execute(
-                        text("UPDATE invoice SET invoice_status = 'Paid' WHERE invoice_id = :invoice_id"),
-                        {"invoice_id": invoice_id}
-                    )
-                    conn.commit()
-                    message = "Invoice marked as paid!"
-                except Exception as e:
-                    conn.rollback()
-                    message = f"Error updating invoice: {e}"
+        # get all invoices and associated projects and clients
+        invoices = conn.execute(
+            text("""
+                SELECT i.invoice_id, i.issue_date, i.due_date, i.invoice_amount, i.invoice_status,
+                       p.project_id, p.project_name,
+                       c.client_id, c.client_first_name, c.client_last_name
+                FROM invoice i
+                LEFT JOIN invoice_assigned_to_project iap ON i.invoice_id = iap.invoice_id
+                LEFT JOIN project p ON iap.project_id = p.project_id
+                LEFT JOIN invoice_billed_to ibt ON i.invoice_id = ibt.invoice_id
+                LEFT JOIN client c ON ibt.client_id = c.client_id
+                ORDER BY i.issue_date ASC
+            """)
+        ).fetchall()
 
-        # Fetch clients for dropdown
+        # get all projects and clients for filter and assign invoices
+        projects = conn.execute(
+            text("SELECT project_id, project_name FROM project")
+        ).fetchall()
         clients = conn.execute(
             text("SELECT client_id, client_first_name, client_last_name FROM client")
         ).fetchall()
-        clients = [{"id": row.client_id, "name": f"{row.client_first_name} {row.client_last_name}"} for row in clients]
 
-        # Fetch all invoices with client information
-        invoices = conn.execute(
+    return render_template("invoice_generator.html", invoices=invoices, projects=projects, clients=clients, message=message)
+
+@app.route("/cost_work_order", methods=["GET", "POST"])
+def cost_work_order():
+    """
+    Manage costs and link them to work orders.
+    """
+    message = None
+
+    with engine.connect() as conn:
+        if request.method == "POST":
+            if "add_cost" in request.form:  
+                cost_description = request.form.get("cost_description")
+                cost_amount = request.form.get("cost_amount")
+                try:
+                    # insert  new cost into database
+                    cost_id = conn.execute(
+                        text("""
+                            INSERT INTO cost (cost_description, cost_amount)
+                            VALUES (:cost_description, :cost_amount) RETURNING cost_id
+                        """),
+                        {"cost_description": cost_description, "cost_amount": cost_amount},
+                    ).scalar()
+                    conn.commit()
+                    message = f"Cost '{cost_description}' added successfully with ID {cost_id}!"
+                except Exception as e:
+                    conn.rollback()
+                    message = f"Error adding cost: {e}"
+
+            elif "link_cost_work_order" in request.form:  # link cost to work order
+                cost_id = request.form.get("cost_id")
+                work_order_id = request.form.get("work_order_id")
+                try:
+                    # link cost to work order
+                    conn.execute(
+                        text("""
+                            INSERT INTO billed_to_work_order (cost_id, work_order_id)
+                            VALUES (:cost_id, :work_order_id)
+                        """),
+                        {"cost_id": cost_id, "work_order_id": work_order_id},
+                    )
+                    conn.commit()
+                    message = f"Cost {cost_id} linked to work order {work_order_id} successfully!"
+                except Exception as e:
+                    conn.rollback()
+                    message = f"Error linking cost to work order: {e}"
+
+        # get all costs and associated work orders
+        costs_work_orders = conn.execute(
             text("""
-                SELECT i.invoice_id, i.invoice_amount, i.issue_date, i.due_date, i.invoice_status, 
-                       c.client_first_name, c.client_last_name
-                FROM invoice i
-                LEFT JOIN invoice_billed_to ibt ON i.invoice_id = ibt.invoice_id
-                LEFT JOIN client c ON ibt.client_id = c.client_id
+                SELECT c.cost_id, c.cost_description, c.cost_amount,
+                       wo.work_order_id, wo.work_order_name
+                FROM cost c
+                LEFT JOIN billed_to_work_order btwo ON c.cost_id = btwo.cost_id
+                LEFT JOIN work_order wo ON btwo.work_order_id = wo.work_order_id
+                ORDER BY c.cost_id ASC
             """)
         ).fetchall()
-        invoices = [
-            {
-                "id": row.invoice_id,
-                "amount": row.invoice_amount,
-                "issue_date": row.issue_date,
-                "due_date": row.due_date,
-                "status": row.invoice_status,
-                "client": f"{row.client_first_name} {row.client_last_name}" if row.client_first_name else "N/A",
-            }
-            for row in invoices
-        ]
 
-    return render_template("invoice_generator.html", clients=clients, invoices=invoices, message=message)
+        # get all work orders for linking
+        work_orders = conn.execute(
+            text("SELECT work_order_id, work_order_name FROM work_order")
+        ).fetchall()
+
+    return render_template("cost_work_order.html", costs_work_orders=costs_work_orders, work_orders=work_orders, message=message)
+
+
 
 @app.route("/project_schedule", methods=["GET", "POST"])
 def project_schedule():
@@ -346,7 +472,7 @@ def project_schedule():
 
     with engine.connect() as conn:
         if request.method == "POST":
-            if "add_work_order" in request.form:  # Adding a new work order
+            if "add_work_order" in request.form:  
                 project_id = request.form.get("project_id")
                 work_order_name = request.form.get("work_order_name")
                 work_order_status = request.form.get("work_order_status")
@@ -365,7 +491,7 @@ def project_schedule():
                             "end_date": end_date,
                         },
                     )
-                    # Assign the new work order to the project
+                    # assign new work order to the project
                     work_order_id = conn.execute(text("SELECT MAX(work_order_id) FROM work_order")).scalar()
                     conn.execute(
                         text("""
@@ -380,7 +506,7 @@ def project_schedule():
                     conn.rollback()
                     message = f"Error adding work order: {e}"
 
-            elif "update_work_order" in request.form:  # Updating a work order status
+            elif "update_work_order" in request.form:  #
                 work_order_id = request.form.get("work_order_id")
                 new_status = request.form.get("new_status")
                 try:
@@ -394,22 +520,22 @@ def project_schedule():
                     conn.rollback()
                     message = f"Error updating work order: {e}"
 
-            elif "delete_work_order" in request.form:  # Deleting a work order
+            elif "delete_work_order" in request.form:  
                 work_order_id = request.form.get("work_order_id")
                 try:
-                    # Delete dependent rows in task_assigned_work_order first
+                    # delete dependent rows in task_assigned_work_order first
                     conn.execute(
                         text("DELETE FROM task_assigned_work_order WHERE work_order_id = :work_order_id"),
                         {"work_order_id": work_order_id},
                     )
 
-                    # Delete dependent rows in assigned_to_project
+                    # delete dependent rows in assigned_to_project
                     conn.execute(
                         text("DELETE FROM assigned_to_project WHERE work_order_id = :work_order_id"),
                         {"work_order_id": work_order_id},
                     )
 
-                    # Delete the work order
+                    # delete work order
                     conn.execute(
                         text("DELETE FROM work_order WHERE work_order_id = :work_order_id"),
                         {"work_order_id": work_order_id},
@@ -420,7 +546,7 @@ def project_schedule():
                     conn.rollback()
                     message = f"Error deleting work order: {e}"
 
-            elif "add_project" in request.form:  # Adding a new project
+            elif "add_project" in request.form:  
                 project_name = request.form.get("project_name")
                 project_description = request.form.get("project_description")
                 try:
@@ -440,7 +566,7 @@ def project_schedule():
                     conn.rollback()
                     message = f"Error creating project: {e}"
 
-        # Query work orders with filtering and project details
+        # query work orders with filtering and project details
         query = """
             SELECT 
                 p.project_name,
@@ -460,7 +586,7 @@ def project_schedule():
 
         schedule_data = conn.execute(text(query), {"search": f"%{search}%"} if search else {}).fetchall()
 
-        # Fetch project list for adding work orders
+        # get project list for adding work orders
         projects = conn.execute(text("SELECT project_id, project_name FROM project")).fetchall()
 
     return render_template("project_schedule.html", schedule_data=schedule_data, projects=projects, message=message)
