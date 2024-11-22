@@ -1,10 +1,15 @@
 {% extends "base.html" %}
-
 {% block title %}Project Schedule{% endblock %}
 
 {% block content %}
 <h1>Projects Schedule</h1>
 
+<!-- Success/Error Message -->
+{% if message %}
+<div class="alert alert-info">{{ message }}</div>
+{% endif %}
+
+<!-- Work Order Table -->
 <table class="table">
     <thead>
         <tr>
@@ -13,6 +18,7 @@
             <th>Status</th>
             <th>Start Date</th>
             <th>End Date</th>
+            <th>Actions</th>
         </tr>
     </thead>
     <tbody>
@@ -20,20 +26,72 @@
         <tr>
             <td>{{ row.project_name }}</td>
             <td>{{ row.work_order_name }}</td>
-            <td>
-                {% if row.work_order_status == 'In Progress' %}
-                <span style="color: #6b8e23; font-weight: bold;">In Progress</span>
-                {% elif row.work_order_status == 'Pending' %}
-                <span style="color: #cc5500; font-weight: bold;">Pending</span>
-                {% else %}
-                {{ row.work_order_status }}
-                {% endif %}
-            </td>
+            <td>{{ row.work_order_status }}</td>
             <td>{{ row.start_date }}</td>
             <td>{{ row.end_date }}</td>
+            <td>
+                <form method="POST" style="display:inline;">
+                    <input type="hidden" name="delete_work_order" value="1">
+                    <input type="hidden" name="work_order_id" value="{{ row.work_order_id }}">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+            </td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
 
+<!-- Add Work Order Form -->
+<h3>Create New Work Order</h3>
+<form method="POST" class="mb-4">
+    <input type="hidden" name="add_work_order" value="1">
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <label for="project_id" class="form-label">Select Project</label>
+            <select id="project_id" name="project_id" class="form-select">
+                {% for project in projects %}
+                <option value="{{ project.project_id }}">{{ project.project_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label for="work_order_name" class="form-label">Work Order Name</label>
+            <input type="text" id="work_order_name" name="work_order_name" class="form-control" required>
+        </div>
+        <div class="col-md-4">
+            <label for="work_order_status" class="form-label">Status</label>
+            <select id="work_order_status" name="work_order_status" class="form-select">
+                <option value="Pending">Pending</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+            </select>
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <label for="start_date" class="form-label">Start Date</label>
+            <input type="date" id="start_date" name="start_date" class="form-control" required>
+        </div>
+        <div class="col-md-6">
+            <label for="end_date" class="form-label">End Date</label>
+            <input type="date" id="end_date" name="end_date" class="form-control" required>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-success">Create Work Order</button>
+</form>
+
+<!-- Add Project Form -->
+<h3>Create New Project</h3>
+<form method="POST" class="mb-4">
+    <input type="hidden" name="add_project" value="1">
+    <div class="mb-3">
+        <label for="project_name" class="form-label">Project Name</label>
+        <input type="text" id="project_name" name="project_name" class="form-control" required>
+    </div>
+    <div class="mb-3">
+        <label for="project_description" class="form-label">Project Description</label>
+        <textarea id="project_description" name="project_description" class="form-control" rows="3" required></textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Create Project</button>
+</form>
 {% endblock %}

@@ -20,4 +20,4 @@ def get_table_columns(table_name):
 
 if __name__ == "__main__":
     # Specify the table name you want to inspect
-    get_table_columns("employee")
+    get_table_columns("invoice_billed_to")

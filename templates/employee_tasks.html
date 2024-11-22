@@ -1,55 +1,90 @@
 {% extends "base.html" %}
 {% block title %}Employee Tasks{% endblock %}
+
 {% block content %}
-<h1>Employee Task Assignment</h1>
+<h1>Employee Tasks</h1>
 
 <!-- Success/Error Message -->
 {% if message %}
 <div class="alert alert-info">{{ message }}</div>
 {% endif %}
 
-<!-- Task Assignment Form -->
+<!-- Employee Cards with Collapsible Tasks -->
+<div class="accordion" id="employeeAccordion">
+    {% for employee in employees %}
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="heading{{ employee.employee_id }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ employee.employee_id }}" aria-expanded="false" aria-controls="collapse{{ employee.employee_id }}">
+                {{ employee.employee_name }} - <small>{{ employee.employee_role }}</small>
+            </button>
+        </h2>
+        <div id="collapse{{ employee.employee_id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ employee.employee_id }}" data-bs-parent="#employeeAccordion">
+            <div class="accordion-body">
+                <h6>Tasks:</h6>
+                <ul class="list-group">
+                    {% for task_id, task_name, description, status in zip(employee.task_ids, employee.task_names, employee.descriptions, employee.statuses) if task_name %}
+                    <li class="list-group-item">
+                        <strong>{{ task_name }}</strong> - {{ description }}
+                        <br>
+                        <span><strong>Status:</strong> {{ status }}</span>
+                        <form method="POST" class="mt-2">
+                            <input type="hidden" name="update_status" value="1">
+                            <input type="hidden" name="task_id" value="{{ task_id }}">
+                            <select name="new_status" class="form-select form-select-sm" style="width: auto; display: inline-block;">
+                                <option value="Pending" {% if status == 'Pending' %}selected{% endif %}>Pending</option>
+                                <option value="In Progress" {% if status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                                <option value="Completed" {% if status == 'Completed' %}selected{% endif %}>Completed</option>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-primary">Update</button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Add Employee Form -->
+<h3>Add a New Employee</h3>
 <form method="POST" class="mb-4">
-    <div class="row">
-        <div class="col-md-5">
+    <input type="hidden" name="add_employee" value="1">
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <label for="employee_name" class="form-label">Name</label>
+            <input type="text" id="employee_name" name="employee_name" class="form-control" placeholder="Enter full name" required>
+        </div>
+        <div class="col-md-4">
+            <label for="role" class="form-label">Role</label>
+            <input type="text" id="role" name="role" class="form-control" placeholder="Enter role" required>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Add Employee</button>
+</form>
+
+<!-- Assign Task Form -->
+<h3>Assign a Task to an Employee</h3>
+<form method="POST" class="mb-4">
+    <input type="hidden" name="assign_task" value="1">
+    <div class="row mb-3">
+        <div class="col-md-4">
             <label for="employee_id" class="form-label">Employee</label>
             <select id="employee_id" name="employee_id" class="form-select" required>
                 {% for employee in employees %}
-                <option value="{{ employee.id }}">{{ employee.name }} ({{ employee.role }})</option>
+                <option value="{{ employee.employee_id }}">{{ employee.employee_name }}</option>
                 {% endfor %}
             </select>
         </div>
-        <div class="col-md-5">
-            <label for="task_id" class="form-label">Task</label>
-            <select id="task_id" name="task_id" class="form-select" required>
-                {% for task in tasks %}
-                <option value="{{ task.id }}">{{ task.name }} - {{ task.description }} ({{ task.status }})</option>
-                {% endfor %}
-            </select>
+        <div class="col-md-4">
+            <label for="task_name" class="form-label">Task Name</label>
+            <input type="text" id="task_name" name="task_name" class="form-control" placeholder="Enter task name" required>
         </div>
-        <div class="col-md-2 align-self-end">
-            <button type="submit" class="btn btn-primary">Assign Task</button>
+        <div class="col-md-4">
+            <label for="task_description" class="form-label">Task Description</label>
+            <input type="text" id="task_description" name="task_description" class="form-control" placeholder="Enter task description">
         </div>
     </div>
+    <button type="submit" class="btn btn-success">Assign Task</button>
 </form>
-
-<!-- Current Assignments -->
-<h3>Current Task Assignments</h3>
-<table class="table">
-    <thead>
-        <tr>
-            <th>Employee</th>
-            <th>Task</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for assignment in assignments %}
-        <tr>
-            <td>{{ assignment.employee_name }}</td>
-            <td>{{ assignment.task_name }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-
 {% endblock %}

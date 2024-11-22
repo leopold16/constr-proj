@@ -2,19 +2,97 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 <h1>Dashboard</h1>
-<div class="row">
-    {% for project in projects %}
-    <div class="col-md-4">
-        <div class="card mb-3">
+
+<!-- Metrics Section -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-header">Projects</div>
             <div class="card-body">
-                <h5 class="card-title">{{ project.name }}</h5>
-                <p>Status: {{ project.status }}</p>
-                <div class="progress">
-                    <div class="progress-bar" role="progressbar" style="width: {{ project.progress }}%;"></div>
-                </div>
+                <h3>{{ total_projects }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-header">Employees</div>
+            <div class="card-body">
+                <h3>{{ total_employees }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-header">Tasks</div>
+            <div class="card-body">
+                <h3>{{ total_tasks }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-header">Invoices</div>
+            <div class="card-body">
+                <h3>{{ total_invoices }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Task Progress Section -->
+<h3>Task Progress</h3>
+<div class="row mb-4">
+    {% for status, count in task_statuses.items() %}
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-header">{{ status }}</div>
+            <div class="card-body">
+                <h3>{{ count }}</h3>
             </div>
         </div>
     </div>
     {% endfor %}
+</div>
+
+<!-- Recent Invoices Section -->
+<h3>Recent Invoices</h3>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Invoice ID</th>
+            <th>Client</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Due Date</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for invoice in recent_invoices %}
+        <tr>
+            <td>{{ invoice.id }}</td>
+            <td>{{ invoice.client }}</td>
+            <td>${{ invoice.amount }}</td>
+            <td>{{ invoice.status }}</td>
+            <td>{{ invoice.due_date }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Quick Actions -->
+<h3>Quick Actions</h3>
+<div class="row">
+    <div class="col-md-3">
+        <a href="/employee_tasks" class="btn btn-primary btn-block">Assign Tasks</a>
+    </div>
+    <div class="col-md-3">
+        <a href="/invoice_generator" class="btn btn-primary btn-block">Generate Invoice</a>
+    </div>
+    <div class="col-md-3">
+        <a href="/client_view" class="btn btn-primary btn-block">View Clients</a>
+    </div>
+    <div class="col-md-3">
+        <a href="/project_schedule" class="btn btn-primary btn-block">View Schedule</a>
+    </div>
 </div>
 {% endblock %}
