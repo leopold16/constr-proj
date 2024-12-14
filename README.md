@@ -1,6 +1,3 @@
-Postgresql account details:
-username - lw2999
-password - 341647
 
 Web application URL
 This project runs locally, accessible via http://127.0.0.1:5000 or localhost:5000 when running python3 app.py
